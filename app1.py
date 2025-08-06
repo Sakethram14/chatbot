@@ -198,7 +198,7 @@ def generate_plan(user_query):
     model_id = "ibm/granite-13b-instruct-v2"
     context = retrieve_context(user_query)
     
-    # --- REVERTED to the simple, original prompt ---
+    # Reverted to the simple, original prompt
     prompt = f"""
     You are an expert Travel Planner Agent. Your task is to create a personalized travel itinerary based on the user's request and the provided context.
     **Context from Knowledge Base:**
@@ -242,7 +242,9 @@ def generate_plan(user_query):
         response_json = generation_response.json()
         return response_json['results'][0]['generated_text']
     except requests.exceptions.RequestException as e:
-        return f"Error calling generation API: {e}\nResponse: {generation_response.text}"
+        # --- THIS IS THE CORRECTED LINE ---
+        # Only return the exception 'e', not the non-existent 'generation_response'
+        return f"Error calling generation API: {e}"
 
 # --- Section 3: Streamlit User Interface ---
 st.set_page_config(page_title="AI Travel Planner Chatbot", layout="centered")
@@ -268,7 +270,7 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
     with st.chat_message("assistant"):
         with st.spinner("🤖 Crafting your personalized journey..."):
             
-            # --- REVERTED to simple logic with NO validation ---
+            # Reverted to simple logic with NO validation
             
             # Extract details for personalized response
             duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
