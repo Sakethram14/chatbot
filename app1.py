@@ -39,7 +39,7 @@ df_hotels = pd.read_csv(io.StringIO(hotels_data))
 df_activities = pd.read_csv(io.StringIO(activities_data))
 
 
-# --- Section 2: Agent Logic (No changes to these functions) ---
+# --- Section 2: Agent Logic (No changes here) ---
 def retrieve_context(query):
     context_parts = []
     query_lower = query.lower()
@@ -57,7 +57,6 @@ def generate_plan(user_query):
     Generates a travel plan by calling the IBM Watsonx.ai API directly.
     """
     try:
-        # --- FIX #1: Corrected the secret name to match secrets.toml ---
         api_key = st.secrets["WATSONX_API_KEY"]
         project_id = st.secrets["WATSONX_PROJECT_ID"]
     except FileNotFoundError:
@@ -96,7 +95,6 @@ def generate_plan(user_query):
     **Generated Itinerary:**
     """
 
-    # --- FIX #2: Corrected the region to match your project's location (Sydney) ---
     generation_url = "https://au-syd.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
     generation_headers = {
         "Authorization": f"Bearer {access_token}",
@@ -146,8 +144,16 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
     # Generate and display AI response
     with st.chat_message("assistant"):
         with st.spinner("🤖 Crafting your personalized journey..."):
-            response = generate_plan(prompt)
-            st.markdown(response)
+            raw_response = generate_plan(prompt)
+            
+            # --- NEW: Format the response into a bulleted list ---
+            formatted_response = raw_response.strip()
+            if formatted_response.startswith("Day "):
+                 formatted_response = "- " + formatted_response
+            formatted_response = formatted_response.replace(" Day ", "\n- Day ")
+            # --- END of new formatting code ---
+            
+            st.markdown(formatted_response)
     
-    # Add AI response to history
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    # Add AI response to history (storing the formatted version)
+    st.session_state.messages.append({"role": "assistant", "content": formatted_response})
