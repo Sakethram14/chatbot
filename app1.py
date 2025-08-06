@@ -182,7 +182,7 @@ def generate_plan(user_query):
         api_key = st.secrets["WATSONX_API_KEY"]
         project_id = st.secrets["WATSONX_PROJECT_ID"]
     except FileNotFoundError:
-        return "Error: Secrets file not found. This app must be deployed on Streamlit Community Cloud with secrets configured."
+        return "{ \"isValid\": false, \"plan\": \"Secrets not found.\" }"
 
     token_url = "https://iam.cloud.ibm.com/identity/token"
     token_headers = {"Content-Type": "application/x-www-form-urlencoded"}
@@ -193,31 +193,28 @@ def generate_plan(user_query):
         token_response.raise_for_status()
         access_token = token_response.json()["access_token"]
     except requests.exceptions.RequestException as e:
-        return f"Error getting access token: {e}"
+        return f"{{ \"isValid\": false, \"plan\": \"Error getting access token: {e}\" }}"
 
     model_id = "ibm/granite-13b-instruct-v2"
     context = retrieve_context(user_query)
     
-    # --- UPDATED: A clearer, more direct prompt to prevent confusion ---
-    prompt = f"""You are an expert Travel Planner Agent. Your first and most important task is to validate the user's requested destination based on their request.
+    # --- UPDATED: New prompt requiring a strict JSON output ---
+    prompt = f"""
+    You are a travel planning assistant. Your response MUST be a valid JSON object.
+    First, validate the user's requested destination in their request: "{user_query}"
+    The JSON object you return must have two keys: "isValid" (boolean) and "plan" (string).
 
-User's Request: "{user_query}"
-
-First, analyze the destination. If the destination is clearly not a real-world city or travel location (e.g., it is a person's name, random characters like 'asdfasdf', or a fantasy place), you MUST respond with only the single word: INVALID. Do not write anything else.
-
-If the destination is a real place, and only if it is a real place, then you will proceed to the next step. Ignore the INVALID instruction completely and generate a travel plan using the following guidelines:
-- Create a clear, day-by-day itinerary.
-- Use the context provided below if it is relevant to the user's request.
-- If no specific context is available, use your general knowledge to create a plausible plan.
-- Present the final output in a clean, readable format. Do not mention the context or these instructions in your response. Start directly with the travel plan.
-
-Context from Knowledge Base:
----
-{context}
----
-
-Generated Itinerary:
-"""
+    - If the destination is a real-world location, set "isValid" to true and populate the "plan" key with a day-by-day itinerary based on the user's request and the provided context.
+    - If the destination is fake, nonsensical, or not a real place (e.g., 'karthik gut', 'asdfghjkl'), set "isValid" to false and the "plan" key to an empty string.
+    
+    Use the provided context if it is relevant. If no context is available, use your general knowledge.
+    Context from Knowledge Base:
+    ---
+    {context}
+    ---
+    Example of a valid response: {{"isValid": true, "plan": "Day 1: Arrive in Paris and check into your hotel. Visit the Eiffel Tower..."}}
+    Example of an invalid response: {{"isValid": false, "plan": ""}}
+    """
 
     generation_url = "https://au-syd.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
     generation_headers = {
@@ -230,8 +227,8 @@ Generated Itinerary:
         "input": prompt,
         "parameters": {
             "decoding_method": "greedy",
-            "max_new_tokens": 400,
-            "min_new_tokens": 50,
+            "max_new_tokens": 500, # Increased slightly for JSON structure
+            "min_new_tokens": 10,
             "repetition_penalty": 1.1
         },
         "project_id": project_id
@@ -241,9 +238,10 @@ Generated Itinerary:
         generation_response = requests.post(generation_url, headers=generation_headers, json=generation_payload)
         generation_response.raise_for_status()
         response_json = generation_response.json()
+        # Return the raw text, which should be a JSON string
         return response_json['results'][0]['generated_text']
     except requests.exceptions.RequestException as e:
-        return f"Error calling generation API: {e}\nResponse: {generation_response.text}"
+        return f"{{ \"isValid\": false, \"plan\": \"Error calling generation API: {e}\nResponse: {generation_response.text}\" }}"
 
 # --- Section 3: Streamlit User Interface ---
 st.set_page_config(page_title="AI Travel Planner Chatbot", layout="centered")
@@ -269,44 +267,53 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
     with st.chat_message("assistant"):
         with st.spinner("🤖 Crafting your personalized journey..."):
             
-            # Get the response from the AI (which now includes the validation check)
-            raw_response = generate_plan(prompt)
+            # Get the raw JSON string response from the AI
+            json_response_str = generate_plan(prompt)
             
-            # Check if the AI flagged the input as invalid
-            if raw_response.strip() == "INVALID":
-                final_response = "I'm sorry, that doesn't seem to be a valid travel destination. Please enter a real-world location."
-                st.markdown(final_response)
-            else:
-                # This block now only runs for valid locations
-                # Extract details for personalized response
-                duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
-                duration = duration_match.group(1) if duration_match else None
-                
-                destination = None
-                for city in df_destinations['City']:
-                    if city.lower() in prompt.lower():
-                        destination = city
-                        break
-                
-                # Create the personalized prefix
-                prefix = "Certainly, here is your travel plan:\n\n"
-                if duration and destination:
-                    prefix = f"Certainly, here is your {duration} day Travel Plan to {destination}:\n\n"
-                elif duration:
-                    prefix = f"Certainly, here is your {duration} day travel plan:\n\n"
-                elif destination:
-                    prefix = f"Certainly, here is your travel plan to {destination}:\n\n"
+            final_response = ""
+            try:
+                # --- NEW: Parse the JSON response from the AI ---
+                data = json.loads(json_response_str)
+                is_valid = data.get("isValid", False)
+                plan_text = data.get("plan", "")
 
-                # Format the itinerary into a bulleted list
-                day_plans = raw_response.split("Day ")
-                day_plans = [plan for plan in day_plans if plan]
-                formatted_list = [f"- Day {plan.strip()}" for plan in day_plans]
-                formatted_itinerary = "\n".join(formatted_list)
-                
-                # Combine the prefix and the formatted itinerary
-                final_response = prefix + formatted_itinerary
-                
-                st.markdown(final_response)
+                if is_valid and plan_text:
+                    # This block runs for valid locations with a generated plan
+                    # Extract details for personalized response
+                    duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
+                    duration = duration_match.group(1) if duration_match else None
+                    
+                    destination = None
+                    for city in df_destinations['City']:
+                        if city.lower() in prompt.lower():
+                            destination = city
+                            break
+                    
+                    # Create the personalized prefix
+                    prefix = "Certainly, here is your travel plan:\n\n"
+                    if duration and destination:
+                        prefix = f"Certainly, here is your {duration} day Travel Plan to {destination}:\n\n"
+                    elif duration:
+                        prefix = f"Certainly, here is your {duration} day travel plan:\n\n"
+                    elif destination:
+                        prefix = f"Certainly, here is your travel plan to {destination}:\n\n"
+
+                    # Format the itinerary into a bulleted list
+                    day_plans = plan_text.split("Day ")
+                    day_plans = [plan for plan in day_plans if plan]
+                    formatted_list = [f"- Day {plan.strip()}" for plan in day_plans]
+                    formatted_itinerary = "\n".join(formatted_list)
+                    
+                    final_response = prefix + formatted_itinerary
+                else:
+                    # This block runs if the AI decided the location was invalid
+                    final_response = "I'm sorry, that doesn't seem to be a valid travel destination. Please enter a real-world location."
+
+            except json.JSONDecodeError:
+                # This is a fallback if the AI fails to generate valid JSON
+                final_response = "I'm sorry, I received an unexpected response from the AI. Please try again."
+
+            st.markdown(final_response)
     
     # Add the final, combined AI response to history
     st.session_state.messages.append({"role": "assistant", "content": final_response})
