@@ -3,16 +3,34 @@ import pandas as pd
 import io
 import requests
 import json
-import re # Import the regular expression module
+import re
 
-# --- Section 1: Data Loading ---
+# --- Section 1: Data Loading (EXPANDED AGAIN) ---
 destinations_data = """City,Country,Description,BestTimeToVisit,Interests
 Paris,France,"The city of light, known for its art, fashion, and iconic landmarks like the Eiffel Tower.",Spring or Fall,"Art,History,Food,Romance"
 Tokyo,Japan,"A bustling metropolis where modern technology coexists with ancient traditions.",Spring or Fall,"Technology,Food,Culture,Anime"
 Rome,Italy,"An ancient city filled with historical ruins, Renaissance art, and world-class cuisine.",Spring or Summer,"History,Art,Food,Architecture"
 Kyoto,Japan,"Japan's former imperial capital, famous for its beautiful temples, gardens, and traditional geisha districts.",Spring or Fall,"Culture,History,Nature,Relaxation"
 New York,USA,"The city that never sleeps, a global hub for finance, art, and entertainment.",Anytime,"Entertainment,Shopping,Food,Theatre"
+Delhi,India,"India's capital, a sprawling metropolis that blends ancient Mughal history with a modern, cosmopolitan pulse.",October to March,"History,Food,Shopping,Culture"
+Goa,India,"A coastal paradise famous for its sun-kissed beaches, vibrant nightlife, and Portuguese heritage.",November to February,"Beaches,Nightlife,Relaxation,Watersports"
+Jaipur,India,"The Pink City, renowned for its magnificent forts, opulent palaces, and bustling, colorful markets.",October to March,"History,Architecture,Shopping,Culture"
+Kerala,India,"'God's Own Country', a serene region of tranquil backwaters, lush tea plantations, and spice-scented air.",September to March,"Nature,Relaxation,Houseboats,Wellness"
+London,UK,"A historic global city, home to royalty, iconic landmarks like the Tower Bridge, and world-class museums.",Summer,"History,Culture,Theatre,Shopping"
+Sydney,Australia,"Known for its spectacular harbour, iconic Opera House, and famous beaches like Bondi.",Spring or Fall,"Landmarks,Beaches,Outdoors,Food"
+Dubai,UAE,"A futuristic desert oasis of superlatives, featuring the world's tallest building, luxury shopping, and bold architecture.",Winter,"Modern,Shopping,Luxury,Adventure"
+Varanasi,India,"One of the world's oldest living cities, considered the spiritual capital of India, on the banks of the Ganges.",October to March,"Spiritual,Culture,History,River"
+Mumbai,India,"India's bustling financial powerhouse, home to the Bollywood film industry and colonial architecture.",October to February,"Entertainment,Food,History,City Life"
+Udaipur,India,"The 'City of Lakes', known for its romantic lakeside palaces, historic forts, and gardens.",September to March,"Romance,History,Architecture,Lakes"
+Rishikesh,India,"The 'Yoga Capital of the World', nestled in the Himalayas on the banks of the Ganges, offering adventure and spirituality.",September to June,"Yoga,Adventure,Spiritual,Nature"
+Shimla,India,"The former summer capital of British India, a popular Himalayan hill station with colonial architecture.",March to June,"Mountains,Colonial,Nature,Relaxation"
+Bangkok,Thailand,"A vibrant city known for its ornate shrines, bustling street life, and world-famous street food.",November to February,"Food,Culture,Nightlife,Temples"
+Singapore,Singapore,"A futuristic city-state and island country, famous for its green spaces, modern architecture, and multicultural food scene.",Anytime,"Modern,Family,Food,Gardens"
+Amsterdam,Netherlands,"Known for its artistic heritage, elaborate canal system, and narrow houses with gabled facades.",April to May or September to November,"Art,Canals,Culture,History"
+Cairo,Egypt,"Egypt's sprawling capital, set on the Nile River, with nearby Giza being the site of the iconic pyramids and the Great Sphinx.",October to April,"History,Ancient,Culture,Museum"
+Rio de Janeiro,Brazil,"A huge seaside city in Brazil, famed for its Copacabana and Ipanema beaches, Christ the Redeemer statue, and Carnival festival.",September to October or December to March,"Beaches,Nature,Landmarks,Nightlife"
 """
+
 hotels_data = """City,HotelName,PriceRange,Rating
 Paris,Le Bristol Paris,Luxury,5
 Paris,Hotel Henriette,Mid-range,4
@@ -23,7 +41,59 @@ Tokyo,Khaosan Tokyo Samurai,Budget,3
 Rome,Hotel Hassler Roma,Luxury,5
 Rome,Trastevere's Friends,Mid-range,4
 Rome,The Beehive,Budget,3
+Delhi,The Imperial,Luxury,5
+Delhi,The Lalit,Mid-range,4
+Delhi,Zostel Delhi,Budget,3
+Goa,Taj Exotica,Luxury,5
+Goa,The Park Baga River,Mid-range,4
+Goa,The Funky Monkey Hostel,Budget,3
+Jaipur,Rambagh Palace,Luxury,5
+Jaipur,Samode Haveli,Mid-range,4
+Jaipur,Moustache Hostel,Budget,3
+Kerala,Kumarakom Lake Resort,Luxury,5
+Kerala,Marari Beach Resort,Mid-range,4
+Kerala,The Lost Hostels Varkala,Budget,3
+London,The Savoy,Luxury,5
+London,The Hoxton Shoreditch,Mid-range,4
+London,Generator London,Budget,3
+Sydney,Park Hyatt Sydney,Luxury,5
+Sydney,Ovolo Woolloomooloo,Mid-range,4
+Sydney,Wake Up! Sydney Central,Budget,3
+Dubai,Burj Al Arab,Luxury,5
+Dubai,Rove Downtown,Mid-range,4
+Dubai,Rove Dubai Marina,Budget,3
+Varanasi,BrijRama Palace,Luxury,5
+Varanasi,Dwivedi Hotels Palace on Steps,Mid-range,4
+Varanasi,goStops Varanasi,Budget,3
+Mumbai,The Taj Mahal Palace,Luxury,5
+Mumbai,Trident Nariman Point,Mid-range,4
+Mumbai,Abode Bombay,Budget,3
+Udaipur,The Oberoi Udaivilas,Luxury,5
+Udaipur,Amet Haveli,Mid-range,4
+Udaipur,Zostel Udaipur,Budget,3
+Rishikesh,Ananda in the Himalayas,Luxury,5
+Rishikesh,Aloha on the Ganges,Mid-range,4
+Rishikesh,Zostel Rishikesh,Budget,3
+Shimla,Wildflower Hall,Luxury,5
+Shimla,The Oberoi Cecil,Mid-range,4
+Shimla,Clarkes Hotel,Budget,3
+Bangkok,Mandarin Oriental,Luxury,5
+Bangkok,Ariyasomvilla,Mid-range,4
+Bangkok,The Yard Hostel,Budget,3
+Singapore,Marina Bay Sands,Luxury,5
+Singapore,The Fullerton Hotel,Mid-range,4
+Singapore,The Pod @ Beach Road,Budget,3
+Amsterdam,Waldorf Astoria Amsterdam,Luxury,5
+Amsterdam,The Hoxton Amsterdam,Mid-range,4
+Amsterdam,Flying Pig Downtown,Budget,3
+Cairo,Four Seasons Hotel Cairo,Luxury,5
+Cairo,Kempinski Nile Hotel,Mid-range,4
+Cairo,The Australian Hostel,Budget,3
+Rio de Janeiro,Belmond Copacabana Palace,Luxury,5
+Rio de Janeiro,Yoo2 Rio de Janeiro,Mid-range,4
+Rio de Janeiro,Selina Lapa Rio,Budget,3
 """
+
 activities_data = """City,ActivityName,Type,Description
 Paris,Visit the Louvre Museum,Museum,"Home to masterpieces like the Mona Lisa."
 Paris,Seine River Cruise,Tour,"A relaxing way to see the city's landmarks."
@@ -34,6 +104,57 @@ Tokyo,Sushi Making Class,Food,"Learn the art of sushi from a master chef."
 Rome,Colosseum Tour,History,"Explore the ancient amphitheater that once hosted gladiator contests."
 Rome,Vatican City Visit,History,"Visit St. Peter's Basilica and the Sistine Chapel."
 Rome,Pasta Making Class,Food,"Learn how to make authentic Italian pasta from scratch."
+Delhi,Visit India Gate & Rajpath,History,"Pay respects at the war memorial and see the heart of New Delhi."
+Delhi,Explore Qutub Minar,History,"Marvel at the towering minaret and surrounding ancient ruins."
+Delhi,Chandni Chowk Food Walk,Food,"Taste the chaotic and delicious street food of Old Delhi."
+Goa,Relax at Palolem Beach,Beach,"Enjoy the serene, crescent-shaped beach lined with coconut palms."
+Goa,Explore Old Goa Churches,History,"Visit the UNESCO World Heritage sites like the Basilica of Bom Jesus."
+Goa,Dudhsagar Falls Trip,Nature,"Witness the majestic 'Sea of Milk' waterfall on the Mandovi River."
+Jaipur,Tour Amer Fort,History,"Explore the magnificent hilltop fort overlooking Maota Lake."
+Jaipur,Photo at Hawa Mahal,Architecture,"See the iconic 'Palace of Winds' with its intricate latticework."
+Jaipur,Shop at Johari Bazaar,Shopping,"Bargain for gemstones, textiles, and traditional Rajasthani crafts."
+Kerala,Alleppey Backwater Cruise,Houseboat,"Spend a day or night on a traditional houseboat, a unique Kerala experience."
+Kerala,Visit a Munnar Tea Garden,Nature,"Walk through lush green tea plantations and learn about tea processing."
+Kerala,Relax on Varkala Beach,Beach,"Unwind on the cliff-top beach known for its stunning sunsets and natural springs."
+London,Tour the Tower of London,History,"Discover the history of the Crown Jewels, ravens, and Yeoman Warders."
+London,Ride the London Eye,Landmark,"Get a panoramic view of the city from the giant Ferris wheel."
+London,Watch a West End Show,Theatre,"Experience world-class theatre in London's famous theatre district."
+Sydney,Sydney Opera House Tour,Landmark,"Go inside the iconic sails and learn about its history and architecture."
+Sydney,Relax or Surf at Bondi Beach,Beach,"Visit Australia's most famous beach for sun, sand, and surf."
+Sydney,Climb the Harbour Bridge,Adventure,"Take a guided climb for breathtaking views of the city and harbour."
+Dubai,Visit At the Top - Burj Khalifa,Landmark,"Ascend the world's tallest building for unparalleled city views."
+Dubai,Evening Desert Safari,Adventure,"Experience dune bashing, camel rides, and a traditional Bedouin dinner."
+Dubai,Explore the Dubai Mall,Shopping,"Shop at one of the world's largest malls, featuring an aquarium and ice rink."
+Varanasi,Ganga Aarti Ceremony,Spiritual,"Witness the spectacular evening prayer ritual on the banks of the Ganges."
+Varanasi,Sunrise Boat Ride,River,"Experience a peaceful boat ride on the Ganges at dawn to see the city awaken."
+Varanasi,Explore the Ghats and Alleys,Culture,"Wander through the ancient, narrow lanes and the famous riverside steps."
+Mumbai,Visit the Gateway of India,Landmark,"See the iconic arch-monument overlooking the Arabian Sea."
+Mumbai,Walk along Marine Drive,Relaxation,"Enjoy a sunset stroll along the 'Queen's Necklace' promenade."
+Mumbai,Explore Elephanta Caves,History,"Take a ferry to see the ancient rock-cut cave temples."
+Udaipur,Boat Ride on Lake Pichola,Lake,"Enjoy a scenic boat tour with views of the City Palace and Jag Mandir."
+Udaipur,Visit the City Palace,History,"Explore the vast palace complex, a blend of Rajasthani and Mughal architecture."
+Udaipur,Explore Saheliyon-ki-Bari,Nature,"Stroll through the beautiful 'Garden of the Maidens' with its fountains and kiosks."
+Rishikesh,White Water Rafting,Adventure,"Experience thrilling rapids on the River Ganges."
+Rishikesh,Attend a Yoga Retreat,Yoga,"Immerse yourself in yoga and meditation at an ashram in the 'Yoga Capital'."
+Rishikesh,Visit Laxman Jhula,Landmark,"Walk across the iconic suspension bridge with stunning river and mountain views."
+Shimla,Walk The Mall Road,Shopping,"Stroll along the main street of Shimla, lined with shops and cafes."
+Shimla,Ride the Kalka-Shimla Toy Train,Train,"Experience a scenic journey on the UNESCO World Heritage railway."
+Shimla,Visit the Jakhu Temple,Spiritual,"Hike or take a cable car to the temple dedicated to the monkey god Hanuman."
+Bangkok,Visit the Grand Palace,Temple,"Marvel at the opulent architecture of the former royal residence."
+Bangkok,Chatuchak Weekend Market,Shopping,"Get lost in one of the world's largest outdoor markets."
+Bangkok,Street Food Tour,Food,"Sample a wide variety of delicious and authentic Thai street food."
+Singapore,Explore Gardens by the Bay,Gardens,"Visit the futuristic Supertree Grove and the stunning climate-controlled biodomes."
+Singapore,Visit Sentosa Island,Entertainment,"Enjoy theme parks, beaches, and various attractions on this resort island."
+Singapore,Eat at a Hawker Centre,Food,"Experience Singapore's diverse food culture at an affordable open-air food court."
+Amsterdam,Visit the Rijksmuseum,Art,"See masterpieces by Rembrandt, Vermeer, and other Dutch masters."
+Amsterdam,Take a Canal Cruise,Canals,"Explore the city's scenic canals and historic architecture from the water."
+Amsterdam,Explore the Anne Frank House,History,"Visit the secret annex where Anne Frank and her family hid during WWII."
+Cairo,Visit the Pyramids of Giza,Ancient,"Stand in awe of the last remaining wonder of the ancient world."
+Cairo,Explore the Egyptian Museum,Museum,"Discover the world's most extensive collection of ancient Egyptian artifacts."
+Cairo,Shop at Khan el-Khalili Bazaar,Shopping,"Haggle for souvenirs, spices, and crafts in the historic souk."
+Rio de Janeiro,Visit Christ the Redeemer,Landmark,"Take a train up Corcovado mountain to the iconic statue for panoramic views."
+Rio de Janeiro,Ride Sugarloaf Mountain Cable Car,Nature,"Enjoy breathtaking 360-degree views of the city and its surroundings."
+Rio de Janeiro,Relax on Copacabana Beach,Beach,"Soak up the sun on one of the most famous beaches in the world."
 """
 df_destinations = pd.read_csv(io.StringIO(destinations_data))
 df_hotels = pd.read_csv(io.StringIO(hotels_data))
@@ -52,6 +173,23 @@ def retrieve_context(query):
     if not context_parts:
         return "No specific city information found. Provide a general plan."
     return "\n\n".join(context_parts)
+
+def is_prompt_valid(prompt, destinations_df):
+    """
+    Checks if the user's prompt is a valid request.
+    A valid prompt must be of a certain length and contain a known destination.
+    """
+    clean_prompt = prompt.strip().lower()
+    if len(clean_prompt) < 4:
+        return False
+
+    # Check if any known city is mentioned in the prompt
+    for city in destinations_df['City']:
+        if city.lower() in clean_prompt:
+            return True
+            
+    # If no known city is found, the prompt is considered invalid
+    return False
 
 def generate_plan(user_query):
     """
@@ -142,10 +280,10 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # --- NEW: Input Validation ---
-    # Check if the stripped input is very short (e.g., less than 4 characters)
-    if len(prompt.strip()) < 4:
-        response = "Please enter an appropriate value."
+    # Use the new validation function
+    if not is_prompt_valid(prompt, df_destinations):
+        # Provide a more helpful error message
+        response = "Please enter a meaningful travel request including a known destination (e.g., Paris, Delhi, Goa, London, etc.)."
         with st.chat_message("assistant"):
             st.markdown(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
@@ -153,7 +291,7 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
         # Generate and display AI response
         with st.chat_message("assistant"):
             with st.spinner("🤖 Crafting your personalized journey..."):
-                # --- NEW: Extract details for personalized response ---
+                # Extract details for personalized response
                 duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
                 duration = duration_match.group(1) if duration_match else None
                 
@@ -163,7 +301,7 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
                         destination = city
                         break
                 
-                # --- NEW: Create the personalized prefix ---
+                # Create the personalized prefix
                 prefix = "Certainly, here is your travel plan:\n\n"
                 if duration and destination:
                     prefix = f"Certainly, here is your {duration} day Travel Plan to {destination}:\n\n"
