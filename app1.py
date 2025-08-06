@@ -171,19 +171,8 @@ def retrieve_context(query):
             context_parts.append(f"\nHotel Info:\n{df_hotels[df_hotels['City'] == city].to_string()}")
             context_parts.append(f"\nActivity Info:\n{df_activities[df_activities['City'] == city].to_string()}")
     if not context_parts:
-        # This is the fallback for cities not in our database
         return "No specific city information found. Provide a general plan."
     return "\n\n".join(context_parts)
-
-# --- UPDATED: Simplified Input Validation Function ---
-def is_prompt_valid(prompt):
-    """
-    Checks if the user's prompt is valid.
-    A valid prompt must have a minimum length to avoid nonsense inputs.
-    """
-    if len(prompt.strip()) < 4:
-        return False
-    return True
 
 def generate_plan(user_query):
     """
@@ -209,21 +198,23 @@ def generate_plan(user_query):
     model_id = "ibm/granite-13b-instruct-v2"
     context = retrieve_context(user_query)
     
+    # --- UPDATED: New prompt with built-in validation instruction ---
     prompt = f"""
-    You are an expert Travel Planner Agent. Your task is to create a personalized travel itinerary based on the user's request and the provided context.
-    **Context from Knowledge Base:**
+    You are an expert Travel Planner Agent. Your first task is to validate the user's requested destination.
+
+    **Validation Step:**
+    - Examine the user's request: "{user_query}"
+    - Determine if the main destination mentioned is a real, known city, country, or major tourist location in the world.
+    - If the destination is clearly not a real place (e.g., it's a person's name, random letters like 'asdfasdf', or a fantasy location), your entire response must be ONLY the single word: INVALID
+
+    **Plan Generation Step (only if destination is valid):**
+    - If the destination is valid, create a personalized travel itinerary based on the user's request and the provided context.
+    - Context from Knowledge Base:
     ---
     {context}
     ---
-    **User's Request:**
-    "{user_query}"
-    **Instructions:**
-    - Analyze the user's request for details like destination, duration, budget, and interests.
-    - Use **only** the information from the provided context to suggest a plan.
+    - Use only the information from the provided context if available.
     - Create a clear, day-by-day itinerary.
-    - If the context includes hotel and activity suggestions, incorporate them into the plan.
-    - If the user's budget is 'budget', recommend budget-friendly options from the context. Do the same for 'luxury' or 'mid-range'.
-    - If no specific city is found in the context, create a generic travel plan for one of the available cities.
     - Present the final output in a clean, readable format. Do not mention the context or the prompt in your response. Start directly with the travel plan.
     **Generated Itinerary:**
     """
@@ -274,23 +265,24 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # --- UPDATED: Use the simplified validation function ---
-    if not is_prompt_valid(prompt):
-        # Provide a more general error message
-        response = "Please enter a more descriptive travel request."
-        with st.chat_message("assistant"):
-            st.markdown(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
-    else:
-        # Generate and display AI response
-        with st.chat_message("assistant"):
-            with st.spinner("🤖 Crafting your personalized journey..."):
+    # Generate and display AI response
+    with st.chat_message("assistant"):
+        with st.spinner("🤖 Crafting your personalized journey..."):
+            
+            # Get the response from the AI (which now includes the validation check)
+            raw_response = generate_plan(prompt)
+            
+            # --- NEW: Check if the AI flagged the input as invalid ---
+            if raw_response.strip() == "INVALID":
+                final_response = "I'm sorry, that doesn't seem to be a valid travel destination. Please enter a real-world location."
+                st.markdown(final_response)
+            else:
+                # --- This block now only runs for valid locations ---
                 # Extract details for personalized response
                 duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
                 duration = duration_match.group(1) if duration_match else None
                 
                 destination = None
-                # We still check for a known destination to personalize the intro, but we don't block unknown ones.
                 for city in df_destinations['City']:
                     if city.lower() in prompt.lower():
                         destination = city
@@ -305,9 +297,6 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
                 elif destination:
                     prefix = f"Certainly, here is your travel plan to {destination}:\n\n"
 
-                # Get the raw itinerary from the AI
-                raw_response = generate_plan(prompt)
-                
                 # Format the itinerary into a bulleted list
                 day_plans = raw_response.split("Day ")
                 day_plans = [plan for plan in day_plans if plan]
@@ -318,6 +307,6 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
                 final_response = prefix + formatted_itinerary
                 
                 st.markdown(final_response)
-        
-        # Add the final, combined AI response to history
-        st.session_state.messages.append({"role": "assistant", "content": final_response})
+    
+    # Add the final, combined AI response to history
+    st.session_state.messages.append({"role": "assistant", "content": final_response})
