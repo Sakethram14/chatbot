@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-import requests 
+import requests
 import json
 
 # --- Section 1: Data Loading (No changes here) ---
@@ -57,7 +57,8 @@ def generate_plan(user_query):
     Generates a travel plan by calling the IBM Watsonx.ai API directly.
     """
     try:
-        api_key = st.secrets["IBM_API_KEY"]
+        # --- FIX #1: Corrected the secret name to match secrets.toml ---
+        api_key = st.secrets["WATSONX_API_KEY"]
         project_id = st.secrets["WATSONX_PROJECT_ID"]
     except FileNotFoundError:
         return "Error: Secrets file not found. This app must be deployed on Streamlit Community Cloud with secrets configured."
@@ -95,7 +96,8 @@ def generate_plan(user_query):
     **Generated Itinerary:**
     """
 
-    generation_url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
+    # --- FIX #2: Corrected the region to match your project's location (Sydney) ---
+    generation_url = "https://au-syd.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
     generation_headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
