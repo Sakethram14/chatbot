@@ -5,7 +5,7 @@ import requests
 import json
 import re
 
-# --- Section 1: Data Loading (EXPANDED AGAIN) ---
+# --- Section 1: Data Loading ---
 destinations_data = """City,Country,Description,BestTimeToVisit,Interests
 Paris,France,"The city of light, known for its art, fashion, and iconic landmarks like the Eiffel Tower.",Spring or Fall,"Art,History,Food,Romance"
 Tokyo,Japan,"A bustling metropolis where modern technology coexists with ancient traditions.",Spring or Fall,"Technology,Food,Culture,Anime"
@@ -171,25 +171,19 @@ def retrieve_context(query):
             context_parts.append(f"\nHotel Info:\n{df_hotels[df_hotels['City'] == city].to_string()}")
             context_parts.append(f"\nActivity Info:\n{df_activities[df_activities['City'] == city].to_string()}")
     if not context_parts:
+        # This is the fallback for cities not in our database
         return "No specific city information found. Provide a general plan."
     return "\n\n".join(context_parts)
 
-def is_prompt_valid(prompt, destinations_df):
+# --- UPDATED: Simplified Input Validation Function ---
+def is_prompt_valid(prompt):
     """
-    Checks if the user's prompt is a valid request.
-    A valid prompt must be of a certain length and contain a known destination.
+    Checks if the user's prompt is valid.
+    A valid prompt must have a minimum length to avoid nonsense inputs.
     """
-    clean_prompt = prompt.strip().lower()
-    if len(clean_prompt) < 4:
+    if len(prompt.strip()) < 4:
         return False
-
-    # Check if any known city is mentioned in the prompt
-    for city in destinations_df['City']:
-        if city.lower() in clean_prompt:
-            return True
-            
-    # If no known city is found, the prompt is considered invalid
-    return False
+    return True
 
 def generate_plan(user_query):
     """
@@ -280,10 +274,10 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Use the new validation function
-    if not is_prompt_valid(prompt, df_destinations):
-        # Provide a more helpful error message
-        response = "Please enter a meaningful travel request including a known destination (e.g., Paris, Delhi, Goa, London, etc.)."
+    # --- UPDATED: Use the simplified validation function ---
+    if not is_prompt_valid(prompt):
+        # Provide a more general error message
+        response = "Please enter a more descriptive travel request."
         with st.chat_message("assistant"):
             st.markdown(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
@@ -296,6 +290,7 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
                 duration = duration_match.group(1) if duration_match else None
                 
                 destination = None
+                # We still check for a known destination to personalize the intro, but we don't block unknown ones.
                 for city in df_destinations['City']:
                     if city.lower() in prompt.lower():
                         destination = city
