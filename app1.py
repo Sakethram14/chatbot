@@ -198,26 +198,26 @@ def generate_plan(user_query):
     model_id = "ibm/granite-13b-instruct-v2"
     context = retrieve_context(user_query)
     
-    # --- UPDATED: New prompt with built-in validation instruction ---
-    prompt = f"""
-    You are an expert Travel Planner Agent. Your first task is to validate the user's requested destination.
+    # --- UPDATED: A clearer, more direct prompt to prevent confusion ---
+    prompt = f"""You are an expert Travel Planner Agent. Your first and most important task is to validate the user's requested destination based on their request.
 
-    **Validation Step:**
-    - Examine the user's request: "{user_query}"
-    - Determine if the main destination mentioned is a real, known city, country, or major tourist location in the world.
-    - If the destination is clearly not a real place (e.g., it's a person's name, random letters like 'asdfasdf', or a fantasy location), your entire response must be ONLY the single word: INVALID
+User's Request: "{user_query}"
 
-    **Plan Generation Step (only if destination is valid):**
-    - If the destination is valid, create a personalized travel itinerary based on the user's request and the provided context.
-    - Context from Knowledge Base:
-    ---
-    {context}
-    ---
-    - Use only the information from the provided context if available.
-    - Create a clear, day-by-day itinerary.
-    - Present the final output in a clean, readable format. Do not mention the context or the prompt in your response. Start directly with the travel plan.
-    **Generated Itinerary:**
-    """
+First, analyze the destination. If the destination is clearly not a real-world city or travel location (e.g., it is a person's name, random characters like 'asdfasdf', or a fantasy place), you MUST respond with only the single word: INVALID. Do not write anything else.
+
+If the destination is a real place, and only if it is a real place, then you will proceed to the next step. Ignore the INVALID instruction completely and generate a travel plan using the following guidelines:
+- Create a clear, day-by-day itinerary.
+- Use the context provided below if it is relevant to the user's request.
+- If no specific context is available, use your general knowledge to create a plausible plan.
+- Present the final output in a clean, readable format. Do not mention the context or these instructions in your response. Start directly with the travel plan.
+
+Context from Knowledge Base:
+---
+{context}
+---
+
+Generated Itinerary:
+"""
 
     generation_url = "https://au-syd.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
     generation_headers = {
@@ -272,12 +272,12 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
             # Get the response from the AI (which now includes the validation check)
             raw_response = generate_plan(prompt)
             
-            # --- NEW: Check if the AI flagged the input as invalid ---
+            # Check if the AI flagged the input as invalid
             if raw_response.strip() == "INVALID":
                 final_response = "I'm sorry, that doesn't seem to be a valid travel destination. Please enter a real-world location."
                 st.markdown(final_response)
             else:
-                # --- This block now only runs for valid locations ---
+                # This block now only runs for valid locations
                 # Extract details for personalized response
                 duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
                 duration = duration_match.group(1) if duration_match else None
