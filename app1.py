@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import requests
 import json
+import re # Import the regular expression module
 
 # --- Section 1: Data Loading ---
 destinations_data = """City,Country,Description,BestTimeToVisit,Interests
@@ -141,25 +142,49 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate and display AI response
-    with st.chat_message("assistant"):
-        with st.spinner("🤖 Crafting your personalized journey..."):
-            raw_response = generate_plan(prompt)
-            
-            # Format the response into a proper bulleted list
-            # Split the response by "Day " to handle each day individually
-            day_plans = raw_response.split("Day ")
-            
-            # Filter out any empty strings that result from the split (like the one before "Day 1")
-            day_plans = [plan for plan in day_plans if plan]
-            
-            # Create a new list where each item is a formatted bullet point
-            formatted_list = [f"- Day {plan.strip()}" for plan in day_plans]
-            
-            # Join the list items with newlines to create the final markdown string
-            formatted_response = "\n".join(formatted_list)
-            
-            st.markdown(formatted_response)
-    
-    # Add AI response to history (storing the formatted version)
-    st.session_state.messages.append({"role": "assistant", "content": formatted_response})
+    # --- NEW: Input Validation ---
+    # Check if the stripped input is very short (e.g., less than 4 characters)
+    if len(prompt.strip()) < 4:
+        response = "Please enter an appropriate value."
+        with st.chat_message("assistant"):
+            st.markdown(response)
+        st.session_state.messages.append({"role": "assistant", "content": response})
+    else:
+        # Generate and display AI response
+        with st.chat_message("assistant"):
+            with st.spinner("🤖 Crafting your personalized journey..."):
+                # --- NEW: Extract details for personalized response ---
+                duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
+                duration = duration_match.group(1) if duration_match else None
+                
+                destination = None
+                for city in df_destinations['City']:
+                    if city.lower() in prompt.lower():
+                        destination = city
+                        break
+                
+                # --- NEW: Create the personalized prefix ---
+                prefix = "Certainly, here is your travel plan:\n\n"
+                if duration and destination:
+                    prefix = f"Certainly, here is your {duration} day Travel Plan to {destination}:\n\n"
+                elif duration:
+                    prefix = f"Certainly, here is your {duration} day travel plan:\n\n"
+                elif destination:
+                    prefix = f"Certainly, here is your travel plan to {destination}:\n\n"
+
+                # Get the raw itinerary from the AI
+                raw_response = generate_plan(prompt)
+                
+                # Format the itinerary into a bulleted list
+                day_plans = raw_response.split("Day ")
+                day_plans = [plan for plan in day_plans if plan]
+                formatted_list = [f"- Day {plan.strip()}" for plan in day_plans]
+                formatted_itinerary = "\n".join(formatted_list)
+                
+                # Combine the prefix and the formatted itinerary
+                final_response = prefix + formatted_itinerary
+                
+                st.markdown(final_response)
+        
+        # Add the final, combined AI response to history
+        st.session_state.messages.append({"role": "assistant", "content": final_response})
