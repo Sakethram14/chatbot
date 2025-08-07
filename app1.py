@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
 import io
-import requests
-import json
 import re
+# Import the official IBM library
+from ibm_watson_machine_learning.foundation_models import Model
 
-# --- Section 1: Data Loading ---
-# This section contains your local data for destinations, hotels, and activities.
+# --- Section 1: Data Loading (Unchanged) ---
 destinations_data = """City,Country,Description,BestTimeToVisit,Interests
 Paris,France,"The city of light, known for its art, fashion, and iconic landmarks like the Eiffel Tower.",Spring or Fall,"Art,History,Food,Romance"
 Tokyo,Japan,"A bustling metropolis where modern technology coexists with ancient traditions.",Spring or Fall,"Technology,Food,Culture,Anime"
@@ -162,7 +161,7 @@ df_hotels = pd.read_csv(io.StringIO(hotels_data))
 df_activities = pd.read_csv(io.StringIO(activities_data))
 
 
-# --- Section 2: Agent Logic ---
+# --- Section 2: Agent Logic (NOW USING IBM'S OFFICIAL PYTHON LIBRARY) ---
 def retrieve_context(query):
     context_parts = []
     query_lower = query.lower()
@@ -177,28 +176,43 @@ def retrieve_context(query):
 
 def generate_plan(user_query):
     """
-    Generates a travel plan by calling the IBM Watsonx.ai API directly.
+    Generates a travel plan using the official ibm-watson-machine-learning library.
+    This is the most reliable method and bypasses issues with the website UI.
     """
     try:
         api_key = st.secrets["WATSONX_API_KEY"]
         project_id = st.secrets["WATSONX_PROJECT_ID"]
-    except FileNotFoundError:
-        return "Error: Secrets file not found. Make sure you have a secrets.toml file."
-    except KeyError:
-        return "Error: Make sure WATSONX_API_KEY and WATSONX_PROJECT_ID are in your secrets."
+    except Exception as e:
+        return f"Error: Make sure you have created secrets.toml with WATSONX_API_KEY and WATSONX_PROJECT_ID. Details: {e}"
 
-    token_url = "https://iam.cloud.ibm.com/identity/token"
-    token_headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    token_data = f"grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey={api_key}"
-    
-    try:
-        token_response = requests.post(token_url, headers=token_headers, data=token_data, timeout=10)
-        token_response.raise_for_status()
-        access_token = token_response.json()["access_token"]
-    except requests.exceptions.RequestException as e:
-        return f"Error getting access token: {e}"
+    # These are the credentials for the Dallas region.
+    # The library uses the base URL, not the full endpoint.
+    credentials = {
+        "url": "https://us-south.ml.cloud.ibm.com",
+        "apikey": api_key
+    }
 
+    # Define model parameters
     model_id = "ibm/granite-13b-instruct-v2"
+    parameters = {
+        "decoding_method": "greedy",
+        "max_new_tokens": 400,
+        "min_new_tokens": 50,
+        "repetition_penalty": 1.1
+    }
+
+    # Create the model object
+    try:
+        model = Model(
+            model_id=model_id,
+            params=parameters,
+            credentials=credentials,
+            project_id=project_id
+        )
+    except Exception as e:
+        return f"Error creating the AI model object. Details: {e}"
+
+
     context = retrieve_context(user_query)
     
     prompt = f"""
@@ -219,37 +233,17 @@ def generate_plan(user_query):
     - Present the final output in a clean, readable format. Do not mention the context or the prompt in your response. Start directly with the travel plan.
     **Generated Itinerary:**
     """
-
-    # --- FINAL FIX ---
-    # This URL now points to the Dallas (us-south) server to match your new project.
-    generation_url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
     
-    generation_headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
-    generation_payload = {
-        "model_id": model_id,
-        "input": prompt,
-        "parameters": {
-            "decoding_method": "greedy",
-            "max_new_tokens": 400,
-            "min_new_tokens": 50,
-            "repetition_penalty": 1.1
-        },
-        "project_id": project_id
-    }
-
+    # Generate the text
     try:
-        generation_response = requests.post(generation_url, headers=generation_headers, json=generation_payload, timeout=20)
-        generation_response.raise_for_status()
-        response_json = generation_response.json()
-        return response_json['results'][0]['generated_text']
-    except requests.exceptions.RequestException as e:
-        return f"Error calling generation API: {e}"
+        generated_response = model.generate_text(prompt=prompt)
+        return generated_response
+    except Exception as e:
+        # This will give us a much more specific error message if it fails.
+        return f"Error during text generation: {e}"
 
-# --- Section 3: Streamlit User Interface ---
+
+# --- Section 3: Streamlit User Interface (Unchanged) ---
 st.set_page_config(page_title="AI Travel Planner Chatbot", layout="centered")
 st.title("🌍 AI Travel Planner Chatbot")
 
@@ -272,9 +266,8 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
 
             # Check if the response is an error before trying to format it.
             if raw_response.strip().startswith("Error"):
-                final_response = raw_response # Display the error message directly
+                final_response = raw_response
             else:
-                # This part now only runs if we get a successful response
                 duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
                 duration = duration_match.group(1) if duration_match else None
                 
