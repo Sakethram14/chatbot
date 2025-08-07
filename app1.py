@@ -6,6 +6,7 @@ import json
 import re
 
 # --- Section 1: Data Loading ---
+# This section is unchanged.
 destinations_data = """City,Country,Description,BestTimeToVisit,Interests
 Paris,France,"The city of light, known for its art, fashion, and iconic landmarks like the Eiffel Tower.",Spring or Fall,"Art,History,Food,Romance"
 Tokyo,Japan,"A bustling metropolis where modern technology coexists with ancient traditions.",Spring or Fall,"Technology,Food,Culture,Anime"
@@ -182,14 +183,16 @@ def generate_plan(user_query):
         api_key = st.secrets["WATSONX_API_KEY"]
         project_id = st.secrets["WATSONX_PROJECT_ID"]
     except FileNotFoundError:
-        return "Error: Secrets file not found."
+        return "Error: Secrets file not found. Make sure you have a secrets.toml file."
+    except KeyError:
+        return "Error: Make sure WATSONX_API_KEY and WATSONX_PROJECT_ID are in your secrets."
 
     token_url = "https://iam.cloud.ibm.com/identity/token"
     token_headers = {"Content-Type": "application/x-www-form-urlencoded"}
     token_data = f"grant_type=urn:ibm:params:oauth:grant-type:apikey&apikey={api_key}"
     
     try:
-        token_response = requests.post(token_url, headers=token_headers, data=token_data)
+        token_response = requests.post(token_url, headers=token_headers, data=token_data, timeout=10)
         token_response.raise_for_status()
         access_token = token_response.json()["access_token"]
     except requests.exceptions.RequestException as e:
@@ -198,7 +201,6 @@ def generate_plan(user_query):
     model_id = "ibm/granite-13b-instruct-v2"
     context = retrieve_context(user_query)
     
-    # Reverted to the simple, original prompt
     prompt = f"""
     You are an expert Travel Planner Agent. Your task is to create a personalized travel itinerary based on the user's request and the provided context.
     **Context from Knowledge Base:**
@@ -218,7 +220,12 @@ def generate_plan(user_query):
     **Generated Itinerary:**
     """
 
-    generation_url = "https://au-syd.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
+    # --- FIX APPLIED HERE ---
+    # Changed the URL from the Sydney ('au-syd') region to the US South ('us-south') region.
+    # This is a more common endpoint and should resolve the NameResolutionError.
+    # Note: Your WatsonX project_id must be associated with the US South region for this to work.
+    generation_url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
+    
     generation_headers = {
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
@@ -237,73 +244,69 @@ def generate_plan(user_query):
     }
 
     try:
-        generation_response = requests.post(generation_url, headers=generation_headers, json=generation_payload)
+        generation_response = requests.post(generation_url, headers=generation_headers, json=generation_payload, timeout=20)
         generation_response.raise_for_status()
         response_json = generation_response.json()
         return response_json['results'][0]['generated_text']
     except requests.exceptions.RequestException as e:
-        # --- THIS IS THE CORRECTED LINE ---
-        # Only return the exception 'e', not the non-existent 'generation_response'
         return f"Error calling generation API: {e}"
 
 # --- Section 3: Streamlit User Interface ---
 st.set_page_config(page_title="AI Travel Planner Chatbot", layout="centered")
 st.title("🌍 AI Travel Planner Chatbot")
 
-# Initialize chat history in session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display past messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# Get new user input
 if prompt := st.chat_input("Tell me about your dream trip..."):
-    # Add user message to history and display it
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate and display AI response
     with st.chat_message("assistant"):
         with st.spinner("🤖 Crafting your personalized journey..."):
             
-            # Reverted to simple logic with NO validation
-            
-            # Extract details for personalized response
-            duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
-            duration = duration_match.group(1) if duration_match else None
-            
-            destination = None
-            for city in df_destinations['City']:
-                if city.lower() in prompt.lower():
-                    destination = city
-                    break
-            
-            # Create the personalized prefix
-            prefix = "Certainly, here is your travel plan:\n\n"
-            if duration and destination:
-                prefix = f"Certainly, here is your {duration} day Travel Plan to {destination}:\n\n"
-            elif duration:
-                prefix = f"Certainly, here is your {duration} day travel plan:\n\n"
-            elif destination:
-                prefix = f"Certainly, here is your travel plan to {destination}:\n\n"
-
-            # Get the raw itinerary from the AI
             raw_response = generate_plan(prompt)
-            
-            # Format the itinerary into a bulleted list
-            day_plans = raw_response.split("Day ")
-            day_plans = [plan for plan in day_plans if plan]
-            formatted_list = [f"- Day {plan.strip()}" for plan in day_plans]
-            formatted_itinerary = "\n".join(formatted_list)
-            
-            # Combine the prefix and the formatted itinerary
-            final_response = prefix + formatted_itinerary
+
+            # --- FIX APPLIED HERE ---
+            # Check if the response is an error before trying to format it.
+            if raw_response.strip().startswith("Error"):
+                final_response = raw_response # Display the error message directly
+            else:
+                # This part now only runs if we get a successful response
+                duration_match = re.search(r'(\d+)\s*day', prompt, re.IGNORECASE)
+                duration = duration_match.group(1) if duration_match else None
+                
+                destination = None
+                for city in df_destinations['City']:
+                    if city.lower() in prompt.lower():
+                        destination = city
+                        break
+                
+                prefix = "Certainly, here is your travel plan:\n\n"
+                if duration and destination:
+                    prefix = f"Certainly, here is your {duration} day Travel Plan to {destination}:\n\n"
+                elif duration:
+                    prefix = f"Certainly, here is your {duration} day travel plan:\n\n"
+                elif destination:
+                    prefix = f"Certainly, here is your travel plan to {destination}:\n\n"
+
+                day_plans = raw_response.split("Day ")
+                day_plans = [plan for plan in day_plans if plan and plan.strip()] # Clean up empty splits
+                
+                # Check if the split worked, otherwise just show the raw response
+                if len(day_plans) > 0 and any(char.isdigit() for char in day_plans[0]):
+                    formatted_list = [f"- Day {plan.strip()}" for plan in day_plans]
+                    formatted_itinerary = "\n".join(formatted_list)
+                else:
+                    formatted_itinerary = raw_response # Fallback for unexpected formats
+
+                final_response = prefix + formatted_itinerary
             
             st.markdown(final_response)
     
-    # Add the final, combined AI response to history
     st.session_state.messages.append({"role": "assistant", "content": final_response})
