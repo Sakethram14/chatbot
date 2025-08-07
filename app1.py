@@ -220,10 +220,9 @@ def generate_plan(user_query):
     **Generated Itinerary:**
     """
 
-    # --- CRITICAL LINE ---
-    # This URL must match the location of your Watsonx Project ID.
-    # Since your project is in Sydney, we must use the 'au-syd' address.
-    generation_url = "https://au-syd.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
+    # --- FINAL FIX ---
+    # This URL now points to the Dallas (us-south) server to match your new project.
+    generation_url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
     
     generation_headers = {
         "Authorization": f"Bearer {access_token}",
