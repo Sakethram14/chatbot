@@ -1,4 +1,4 @@
 streamlit
 pandas
 requests
-
+ibm-watson-machine-learning>=1.0.342
