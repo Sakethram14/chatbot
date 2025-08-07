@@ -6,7 +6,7 @@ import json
 import re
 
 # --- Section 1: Data Loading ---
-# This section is unchanged.
+# This section contains your local data for destinations, hotels, and activities.
 destinations_data = """City,Country,Description,BestTimeToVisit,Interests
 Paris,France,"The city of light, known for its art, fashion, and iconic landmarks like the Eiffel Tower.",Spring or Fall,"Art,History,Food,Romance"
 Tokyo,Japan,"A bustling metropolis where modern technology coexists with ancient traditions.",Spring or Fall,"Technology,Food,Culture,Anime"
@@ -220,11 +220,10 @@ def generate_plan(user_query):
     **Generated Itinerary:**
     """
 
-    # --- FIX APPLIED HERE ---
-    # Changed the URL from the Sydney ('au-syd') region to the US South ('us-south') region.
-    # This is a more common endpoint and should resolve the NameResolutionError.
-    # Note: Your WatsonX project_id must be associated with the US South region for this to work.
-    generation_url = "https://us-south.ml.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
+    # --- CRITICAL LINE ---
+    # This URL must match the location of your Watsonx Project ID.
+    # Since your project is in Sydney, we must use the 'au-syd' address.
+    generation_url = "https://au-syd.cloud.ibm.com/ml/v1/text/generation?version=2024-04-01"
     
     generation_headers = {
         "Authorization": f"Bearer {access_token}",
@@ -272,7 +271,6 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
             
             raw_response = generate_plan(prompt)
 
-            # --- FIX APPLIED HERE ---
             # Check if the response is an error before trying to format it.
             if raw_response.strip().startswith("Error"):
                 final_response = raw_response # Display the error message directly
@@ -296,14 +294,13 @@ if prompt := st.chat_input("Tell me about your dream trip..."):
                     prefix = f"Certainly, here is your travel plan to {destination}:\n\n"
 
                 day_plans = raw_response.split("Day ")
-                day_plans = [plan for plan in day_plans if plan and plan.strip()] # Clean up empty splits
+                day_plans = [plan for plan in day_plans if plan and plan.strip()]
                 
-                # Check if the split worked, otherwise just show the raw response
                 if len(day_plans) > 0 and any(char.isdigit() for char in day_plans[0]):
                     formatted_list = [f"- Day {plan.strip()}" for plan in day_plans]
                     formatted_itinerary = "\n".join(formatted_list)
                 else:
-                    formatted_itinerary = raw_response # Fallback for unexpected formats
+                    formatted_itinerary = raw_response
 
                 final_response = prefix + formatted_itinerary
             
